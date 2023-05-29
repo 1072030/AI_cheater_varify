@@ -5,7 +5,7 @@ import numpy as np
 
 import sklearn
 from sklearn.cluster import KMeans
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier,DecisionTreeRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import silhouette_score
@@ -263,13 +263,50 @@ def KMans_data_analyze(summary:pd.DataFrame,n_clusters:int=2,title:str="Jan"):
     # plt.close() # 關閉圖表
 
 def Decision_data_analyze(summary:pd.DataFrame):
+    # 決策樹
+    # 常見的決策亂度評估指標有 Information gain、Gain ratio、Gini index。
+    #Parameters:
+    # criterion: 亂度的評估標準，gini/entropy。預設為gini。
+    # max_depth: 樹的最大深度。
+    # splitter: 特徵劃分點選擇標準，best/random。預設為best。
+    # random_state: 亂數種子，確保每次訓練結果都一樣，splitter=random 才有用。
+    # min_samples_split: 至少有多少資料才能再分
+    # min_samples_leaf: 分完至少有多少資料才能分
     y = summary["cheater"]
     X = summary.drop(['cheater','userId'],axis=1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=0)
+    print("X_train",X_train.shape,X_train)
+    print("X_test",X_test.shape,X_test)
+    print("y_train",y_train.shape,y_train)
+    print("y_test",y_test.shape,y_test)
     model = DecisionTreeClassifier()
     model.fit(X_train, y_train)
-    print("model score",model.score(X_test, y_test))
+    print("DecisionTreeClassifier model score",model.score(X_test, y_test))
     y_predict = model.predict(X_test)
+    print("predicted",y_predict)
+    print("accuracy",accuracy_score(y_test, y_predict))
+
+    rank = []
+    for i in range(1,6):
+        model = DecisionTreeRegressor(max_depth=i)
+        model.fit(X_train, y_train)
+        # print("DecisionTreeRegressor model score",model.score(X_test, y_test))
+        rank.append((i,model.score(X_test, y_test)))
+    def takeSecond(elem):
+        return elem[1]
+    rank.sort(key=takeSecond)
+    print("rank",rank)
+    model = DecisionTreeRegressor(max_depth=rank[rank.__len__()-1][0])
+    model.fit(X_train, y_train)
+    print("DecisionTreeRegressor model score",model.score(X_test, y_test))
+    y_predict = model.predict(X_test)
+    y_predict = np.around(y_predict)
+    # for i in y_predict:
+    #     if y_predict[i] > 0.5:
+    #         y_predict[i] = 1
+    #     else:
+    #         y_predict[i] = 0
+    print("predicted",y_predict)
     print("accuracy",accuracy_score(y_test, y_predict))
 
 
@@ -324,39 +361,39 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     print("kernel='rbf'-----")
     print("predicted",predicted)
     print("accuracy",accuracy)
+    # ------------------------------------------SVR
+    # linearModel=svm.SVR(C=1, kernel='linear')
+    # # 使用訓練資料訓練模型
+    # linearModel.fit(X_train, y_train)
+    # # 使用訓練資料預測分類
+    # predicted=linearModel.predict(X_train)
+    # accuracy = linearModel.score(X_train, y_train)
+    # print("SVR kernel='linear'-----")
+    # print("predicted",predicted)
+    # print("accuracy",accuracy)
 
-    linearModel=svm.SVR(C=1, kernel='linear')
-    # 使用訓練資料訓練模型
-    linearModel.fit(X_train, y_train)
-    # 使用訓練資料預測分類
-    predicted=linearModel.predict(X_train)
-    accuracy = linearModel.score(X_train, y_train)
-    print("SVR kernel='linear'-----")
-    print("predicted",predicted)
-    print("accuracy",accuracy)
 
+    # # 建立 kernel='poly' 模型
+    # polyModel=svm.SVR(C=1e3, kernel='poly', degree=3, gamma='auto')
+    # # 使用訓練資料訓練模型
+    # polyModel.fit(X_train, y_train)
+    # # 使用訓練資料預測分類
+    # predicted=polyModel.predict(X_train)
+    # accuracy = polyModel.score(X_train, y_train)
+    # print("SVR kernel='poly'-----")
+    # print("predicted",predicted)
+    # print("accuracy",accuracy)
 
-    # 建立 kernel='poly' 模型
-    polyModel=svm.SVR(C=6, kernel='poly', degree=3, gamma='auto')
-    # 使用訓練資料訓練模型
-    polyModel.fit(X_train, y_train)
-    # 使用訓練資料預測分類
-    predicted=polyModel.predict(X_train)
-    accuracy = polyModel.score(X_train, y_train)
-    print("SVR kernel='poly'-----")
-    print("predicted",predicted)
-    print("accuracy",accuracy)
-
-    # 建立 kernel='rbf' 模型
-    rbfModel=svm.SVR(C=6, kernel='rbf', gamma='auto')
-    # 使用訓練資料訓練模型
-    rbfModel.fit(X_train, y_train)
-    # 使用訓練資料預測分類
-    predicted=rbfModel.predict(X_train)
-    accuracy = rbfModel.score(X_train, y_train)
-    print("SVR kernel='rbf'-----")
-    print("predicted",predicted)
-    print("accuracy",accuracy)
+    # # 建立 kernel='rbf' 模型
+    # rbfModel=svm.SVR(C=1e3, kernel='rbf', gamma='auto')
+    # # 使用訓練資料訓練模型
+    # rbfModel.fit(X_train, y_train)
+    # # 使用訓練資料預測分類
+    # predicted= rbfModel.predict(X_train)
+    # accuracy = rbfModel.score(X_train, y_train)
+    # print("SVR kernel='rbf'-----")
+    # print("predicted",predicted)
+    # print("accuracy",accuracy)
 #-------------------------------------------------------------------
 print("Starting process...")
 start = perf_counter()
