@@ -4,12 +4,13 @@ import pandas as pd
 import numpy as np
 
 import sklearn
+from sklearn.linear_model import LogisticRegression
 from sklearn.cluster import KMeans
 from sklearn.tree import DecisionTreeClassifier,DecisionTreeRegressor
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.ensemble import RandomForestClassifier,RandomForestRegressor
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
-from sklearn.metrics import silhouette_score
-from sklearn.tree import export_graphviz
 from sklearn.decomposition import PCA
 from sklearn import svm
 
@@ -80,11 +81,6 @@ def summary(summary:pd.DataFrame()):
             date_for_keys = int(str(date.month)+str(date.day))
         if date_for_keys not in summary_all[userId].keys():
             summary_all[userId][date_for_keys] = summary_all.get(date_for_keys,{"First":date,"Last":date,"duration":"","times":0})
-        
-        # if summary_all[userId][date_for_keys]["Last"] < date:
-        #     summary_all[userId][date_for_keys]["Last"] = date
-
-        # summary_all[userId][date_for_keys]["duration"] = (summary_all[userId][date_for_keys]["Last"] - summary_all[userId][date_for_keys]["First"]).total_seconds()
 
         summary_all[userId][date_for_keys]["times"]+=1
     # 資料型態 : UserID:{day1:{"First":"","Last":"","duration":"",times:""},day2:{}}
@@ -99,8 +95,56 @@ def summary(summary:pd.DataFrame()):
                 
 #     return summary_cheater
 
+def cal_sold_count(summary:dict):
+    player_sold_times_avg={}
+
+    for i in summary.keys():
+        count = {"Jan":0,"Feb":0,"March":0,"Avg":0}
+        if i not in player_sold_times_avg.keys():
+            player_sold_times_avg[i] = player_sold_times_avg.get(i,count)
+        days = summary[i].keys()
+        for j in days:
+            date = j
+            if 100 < date < 200:
+                player_sold_times_avg[i]["Jan"] += summary[i][date]["times"]
+            elif 200 < date < 300:
+                player_sold_times_avg[i]["Feb"] += summary[i][date]["times"]
+            elif date > 300:
+                player_sold_times_avg[i]["March"] += summary[i][date]["times"]
+        
+        player_sold_times_avg[i]["Avg"] = (player_sold_times_avg[i]["Jan"] + 
+                                           player_sold_times_avg[i]["Feb"] + 
+                                           player_sold_times_avg[i]["March"])/90
+        player_sold_times_avg[i]["Jan"] = (player_sold_times_avg[i]["Jan"]/31)
+        player_sold_times_avg[i]["Feb"] = (player_sold_times_avg[i]["Feb"]/28)
+        player_sold_times_avg[i]["March"] = (player_sold_times_avg[i]["March"]/31)
+        
+    userId=[]
+    Jan=[]
+    Feb=[]
+    March=[]
+    Avg=[]
+    
+    for i in player_sold_times_avg.keys():
+        userId.append(i)
+        Jan.append(player_sold_times_avg[i]["Jan"])
+        Feb.append(player_sold_times_avg[i]["Feb"])
+        March.append(player_sold_times_avg[i]["March"])
+        Avg.append(player_sold_times_avg[i]["Avg"])
+            
+    data = {
+        "userId":userId,
+        "Jan":Jan,
+        "Feb":Feb,
+        "March":March,
+        "Avg":Avg
+    }
+    df = pd.DataFrame(data)
+    return df
+
 # 計算使用者的每個月平均登入時間
 def cal_average_time(summary:dict,days:int):
+
     for i in df_Catch.iterrows():
         temp = i[1].values
         userId = temp[0]
@@ -121,8 +165,10 @@ def cal_average_time(summary:dict,days:int):
                     summary[userId][date_for_keys]["Last"] = date
                 if summary[userId][date_for_keys]["First"] != summary[userId][date_for_keys]["Last"]:   
                     summary[userId][date_for_keys]["duration"] = (summary[userId][date_for_keys]["Last"] - summary[userId][date_for_keys]["First"]).total_seconds()
+            
 
 
+    # print(f"benny1207:",summary["benny1207"])
     delkeys= {}
     for i in summary.keys():
         for j in summary[i].keys():
@@ -167,13 +213,13 @@ def Standard_Deviation(summary:dict,block:int=1):
             else:
                 timediff_total[userId].append(timediff)
 
-    print("timediff_totoal",timediff_total)
     for i in timediff_total.keys():
         if i in summary.keys():
             if len(timediff_total[i]) == 0:
                 summary[i].append(0)
             else:
                 summary[i].append(sum(timediff_total[i])/len(timediff_total[i]))
+                summary[i].append(len(timediff_total[i]))
 
             standard_deviation = np.std(timediff_total[i])
             if math.isnan(standard_deviation):
@@ -188,24 +234,27 @@ def FormatData(summary:dict):
     average_play_time=[]
     average_sold_count=[]
     time_diff_middle=[]
+    time_diff_times=[]
     time_diff_standard_deviation=[]
     for key,values in summary.items():
-        if len(values) == 4:
+        if len(values) == 5:
             userId.append(key)
             average_play_time.append(values[0])
             average_sold_count.append(values[1])
             time_diff_middle.append(values[2])
-            time_diff_standard_deviation.append(values[3])
+            time_diff_times.append(values[3])
+            time_diff_standard_deviation.append(values[4])
         else:
+            print(f"useless:{key},{values}")
             useless[key] = useless.get(key,[])
             useless[key] = values
 
-    print("useless",useless)
     data = {
         "userId":userId,
         "average_play_time":average_play_time,
         "average_sold_count":average_sold_count,
         "time_diff_middle":time_diff_middle,
+        "time_diff_times":time_diff_times,
         "time_diff_standard_deviation":time_diff_standard_deviation
     }
     df = pd.DataFrame(data)
@@ -248,7 +297,6 @@ def KMans_data_analyze(summary:pd.DataFrame,n_clusters:int=2,title:str="Jan"):
     kmeans = KMeans(n_clusters=n_clusters)
     clusters = kmeans.fit(dataset)
     y = kmeans.predict(dataset)
-    print("cluster",clusters)
     fig = plt.figure(figsize=(16, 8))
     ax = fig.add_subplot(121, projection='3d')
     ax.scatter(average_playTime_perMonth,standard_deviation, average_sold_count,c=y, cmap=plt.cm.Set1)
@@ -262,6 +310,17 @@ def KMans_data_analyze(summary:pd.DataFrame,n_clusters:int=2,title:str="Jan"):
     # plt.show()
     # plt.close() # 關閉圖表
 
+def KNNs_data_analyze(summary:pd.DataFrame):
+    y = summary["cheater"]
+    X = summary.drop(['cheater','userId'],axis=1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=0)
+    model = KNeighborsClassifier()
+    model.fit(X_train,y_train)
+    print("KNNs model score",model.score(X_test, y_test))
+    y_predict = model.predict(X_test)
+    print("predicted",y_predict)
+    print("accuracy",accuracy_score(y_test, y_predict))
+
 def Decision_data_analyze(summary:pd.DataFrame):
     # 決策樹
     # 常見的決策亂度評估指標有 Information gain、Gain ratio、Gini index。
@@ -272,17 +331,18 @@ def Decision_data_analyze(summary:pd.DataFrame):
     # random_state: 亂數種子，確保每次訓練結果都一樣，splitter=random 才有用。
     # min_samples_split: 至少有多少資料才能再分
     # min_samples_leaf: 分完至少有多少資料才能分
+    # print("X_train",X_train.shape,X_train) (79 rows 5 col)
+    # print("X_test",X_test.shape,X_test) (20 rows 5 col)
+    # print("y_train",y_train.shape,y_train) (79 rows 1 col)
+    # print("y_test",y_test.shape,y_test) (20rows 1 col)
     y = summary["cheater"]
     X = summary.drop(['cheater','userId'],axis=1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=0)
-    print("X_train",X_train.shape,X_train)
-    print("X_test",X_test.shape,X_test)
-    print("y_train",y_train.shape,y_train)
-    print("y_test",y_test.shape,y_test)
     model = DecisionTreeClassifier()
     model.fit(X_train, y_train)
-    print("DecisionTreeClassifier model score",model.score(X_test, y_test))
+    print("DecisionTreeClassifier model test score",model.score(X_test, y_test))
     y_predict = model.predict(X_test)
+    print("DecisionTreeClassifier predict-----")
     print("predicted",y_predict)
     print("accuracy",accuracy_score(y_test, y_predict))
 
@@ -295,19 +355,50 @@ def Decision_data_analyze(summary:pd.DataFrame):
     def takeSecond(elem):
         return elem[1]
     rank.sort(key=takeSecond)
-    print("rank",rank)
     model = DecisionTreeRegressor(max_depth=rank[rank.__len__()-1][0])
     model.fit(X_train, y_train)
     print("DecisionTreeRegressor model score",model.score(X_test, y_test))
     y_predict = model.predict(X_test)
     y_predict = np.around(y_predict)
-    # for i in y_predict:
-    #     if y_predict[i] > 0.5:
-    #         y_predict[i] = 1
-    #     else:
-    #         y_predict[i] = 0
+    print("DecisionTreeRegressor predict-----")
     print("predicted",y_predict)
     print("accuracy",accuracy_score(y_test, y_predict))
+
+def Logistic_data_analyze(summary:pd.DataFrame):
+# penalty: 正規化l1/l2，防止模型過度擬合。
+# C: 數值越大對 weight 的控制力越弱，預設為1。
+# n_init: 預設為10次隨機初始化，選擇效果最好的一種來作為模型。
+# solver: 優化器的選擇。newton-cg,lbfgs,liblinear,sag,saga。預設為liblinear。
+# multi_class: 選擇分類方式，ovr就是one-vs-rest(OvR)，而multinomial就是many-vs-many(MvM)。預設為 auto，故模型訓練中會取一個最好的結果。
+# max_iter: 迭代次數，預設為100代。
+# class_weight: 若遇資料不平衡問題可以設定balance，預設=None。
+# random_state: 亂數種子僅在solver=sag/liblinear時有用。
+
+    y = summary["cheater"]
+    X = summary.drop(['cheater','userId'],axis=1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=0)
+    logisticModel = LogisticRegression()
+    logisticModel.fit(X_train, y_train)
+
+    predicted = logisticModel.predict(X_test)
+    accuracy = accuracy_score(predicted, y_test)
+    print("LogisticRegression model test score",logisticModel.score(X_test, y_test))
+    print("LogisticRegression predict-----")
+    print("predicted",predicted)
+    print("accuracy",accuracy)
+
+def RandomForest_data_analyze(summary:pd.DataFrame):
+    y = summary["cheater"]
+    X = summary.drop(['cheater','userId'],axis=1)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=0)
+    model = RandomForestClassifier()
+    model.fit(X_train,y_train)
+    predicted=model.predict(X_test)
+    accuracy = accuracy_score(predicted, y_test)
+    print("RandomForest Classifier model test score",model.score(X_test, y_test))
+    print("RandomForest Classifier predicted-----")
+    print("predicted",predicted)
+    print("accuracy",accuracy)
 
 
 def SVCR_data_analyze(summary:pd.DataFrame):
@@ -316,14 +407,16 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     y = summary["cheater"]
     X = summary.drop(['cheater','userId'],axis=1)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2,random_state=0)
+    # y_test = y_test.values
     # 建立 linearSvc 模型
     linearSvcModel=svm.LinearSVC(C=1, max_iter=10000)
     # 使用訓練資料訓練模型
     linearSvcModel.fit(X_train, y_train)
+
     # 使用訓練資料預測分類
-    predicted=linearSvcModel.predict(X_train)
+    predicted=linearSvcModel.predict(X_test)
     # 計算準確率
-    accuracy = linearSvcModel.score(X_train, y_train)
+    accuracy = accuracy_score(predicted, y_test)
     print("LinearSVC-----")
     print("predicted",predicted)
     print("accuracy",accuracy)
@@ -333,9 +426,9 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     # 使用訓練資料訓練模型
     svcModel.fit(X_train, y_train)
     # 使用訓練資料預測分類
-    predicted=svcModel.predict(X_train)
+    predicted=svcModel.predict(X_test)
     # 計算準確率
-    accuracy = svcModel.score(X_train, y_train)
+    accuracy = accuracy_score(predicted, y_test)
     print("kernel='linear'-----")
     print("predicted",predicted)
     print("accuracy",accuracy)
@@ -344,10 +437,10 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     # 使用訓練資料訓練模型
     polyModel.fit(X_train, y_train)
     # 使用訓練資料預測分類
-    predicted=polyModel.predict(X_train)
+    predicted=polyModel.predict(X_test)
     # 計算準確率
-    accuracy = polyModel.score(X_train, y_train)
-    print("kernel='linear'-----")
+    accuracy = accuracy_score(predicted, y_test)
+    print("kernel='poly'-----")
     print("predicted",predicted)
     print("accuracy",accuracy)
 
@@ -355,9 +448,9 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     # 使用訓練資料訓練模型
     rbfModel.fit(X_train, y_train)
     # 使用訓練資料預測分類
-    predicted=rbfModel.predict(X_train)
+    predicted=rbfModel.predict(X_test)
     # 計算準確率
-    accuracy = rbfModel.score(X_train, y_train)
+    accuracy = accuracy_score(predicted, y_test)
     print("kernel='rbf'-----")
     print("predicted",predicted)
     print("accuracy",accuracy)
@@ -374,7 +467,7 @@ def SVCR_data_analyze(summary:pd.DataFrame):
 
 
     # # 建立 kernel='poly' 模型
-    # polyModel=svm.SVR(C=1e3, kernel='poly', degree=3, gamma='auto')
+    # polyModel=svm.SVR(C=1, kernel='poly', gamma='auto')
     # # 使用訓練資料訓練模型
     # polyModel.fit(X_train, y_train)
     # # 使用訓練資料預測分類
@@ -385,7 +478,9 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     # print("accuracy",accuracy)
 
     # # 建立 kernel='rbf' 模型
-    # rbfModel=svm.SVR(C=1e3, kernel='rbf', gamma='auto')
+    # rbfModel=svm.SVR(C=1, kernel='rbf', gamma='auto')
+    # X_train = preprocessing.scale(X_train)
+    # y_train = preprocessing.scale(y_train)
     # # 使用訓練資料訓練模型
     # rbfModel.fit(X_train, y_train)
     # # 使用訓練資料預測分類
@@ -397,27 +492,28 @@ def SVCR_data_analyze(summary:pd.DataFrame):
 #-------------------------------------------------------------------
 print("Starting process...")
 start = perf_counter()
-
-# 先將資料進行整合計算 datatype => UserID:{day1:{"First":"","Last":"","duration":"",times:""},day2:{}}
+# 先計算每個月販賣數量 datatype => UserID:{day1:{"First":"","Last":"","duration":"",times:""},day2:{}}
 # summary_all_Jan = summary(df_Jan)
 # summary_all_Feb = summary(df_Feb)
 # summary_all_March = summary(df_March)
-
 summary_all_Month = summary(pd.concat([df_Jan,df_Feb,df_March]))
-print(summary_all_Month.items)
+# print(list(summary_all_Month.items())[:5])
 # 從轉轉樂取得名稱和登入時間
 # summary_all_polygraph = get_cheater_summary(summary_all_Month)
 
+print("Starting cal_avg_sold_count ...")
+summary_sold_count = cal_sold_count(summary_all_Month)
 
 
 # 在一個月內的平均登入時間計算 datatype => {UserID:averageTime}
 print("Starting calculate averagetime...")
-# average_time_Jan = cal_average_time(summary_all_Jan,31)# parameters => dict , int(per_month_days)
+# parameters => dict , int(per_month_days)
+# average_time_Jan = cal_average_time(summary_all_Jan,31)
 # average_time_Feb = cal_average_time(summary_all_Feb,28)
 # average_time_March = cal_average_time(summary_all_March,31)
-
 average_time_all = cal_average_time(summary_all_Month,0)
 # print("average_time_all",average_time_all.items()) # {UserID:averageTime}
+
 
 
 # 解除轉轉樂的平均標準差
@@ -427,34 +523,48 @@ print("Starting calculate Standard Deviation...")
 # March_dataset =Standard_Deviation(average_time_March,3)
 All_dataset = Standard_Deviation(average_time_all,0)
 # print("All_dataset",All_dataset.items())
-print(All_dataset.__len__()) # 100
-# datatype : UserId:[Avg_playtime,sold_times,timediff_middle,timediff_standard_deviation]
+# print(All_dataset.__len__()) # 100
+# datatype : UserId:[Avg_playtime,sold_times,timediff_middle,time_diff_times,timediff_standard_deviation]
 
 # Format Data to pd.DataFrame
 # col = [userId , average_play_time , average_sold_count , time_diff_standard_deviation]
+print("Starting format Data...")
 All_data,useless = FormatData(All_dataset)
-print(All_data.index)
+
+# print(All_data.index)
 # create cheater col
 All_data = get_cheater(All_data)
-print(All_data.head())
+
+summary_sold_count = get_cheater(summary_sold_count)
+print("summary_sold_count")
+print(summary_sold_count["cheater"].__len__())
+print(summary_sold_count[summary_sold_count["cheater"]==1])
+# print(All_data.head())
 
 # KMeans clusters final output
 print("Starting KMeans Cluster...")
 # KMans_data_analyze(Jan_dataset,2,"Jan")
 # KMans_data_analyze(Feb_dataset,2,"Feb") # parameters => dict , int(n_cluster)
 # KMans_data_analyze(March_dataset,2,"March")
-# 
-#  
 KMans_data_analyze(All_data,2,"All")
-# KMans_data_analyze(All_data,3,"All")
-# KMans_data_analyze(All_data,4,"All")
-# KMans_data_analyze(All_data,5,"All")
-# KMans_data_analyze(All_data,6,"All")
+
+# KNNs Cluster
+print("Starting KNNs Cluster...")
+KNNs_data_analyze(All_data)
 
 # Decision clusters final output
 print("Starting Decision Tree Analyze...")
 Decision_data_analyze(All_data)
 
+# LogisticRegression cluster 
+print("Starting Logistic Regression Analyze...")
+Logistic_data_analyze(All_data)
+
+#RandomForest cluster
+print("Starting RandomForest Classifier&Regression Analyze...")
+RandomForest_data_analyze(All_data)
+
+# SVM clusters
 print("Starting SVM Analyze...")
 SVCR_data_analyze(All_data)
 
