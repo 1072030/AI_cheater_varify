@@ -1,3 +1,9 @@
+'''
+主要進行資料分析位置
+將資料進行整合輸出
+當初在撰寫的時候將每個模型的計算都在這裡執行 導致每次執行都會持續很久 大約10分鐘
+'''
+
 import os
 import sys
 import pandas as pd
@@ -55,6 +61,8 @@ print("reading March file...")
 df_March = pd.read_excel(os.getcwd()+'/賣商店次數前100名角色3月賣商店紀錄.xlsx',usecols=["UserID","ExchangeDate"])
 print("reading Catching AI file")
 df_Catch = pd.read_excel(os.getcwd()+'/120秒內解除轉轉樂紀錄.xlsx',usecols=["UserID","fireTime","timediff"])
+print("reading NormalPerson file...")
+df_normal = pd.read_excel(os.getcwd()+'/120秒內解除轉轉樂紀錄.xlsx',usecols=["UserID","fireTime","timediff"])
 print("reading Cheater file...")
 df_cheater = pd.read_excel(os.getcwd()+'/cheaters.xlsx',usecols=["UserID"])
 end_reading = perf_counter()
@@ -274,7 +282,7 @@ def get_cheater(summary:pd.DataFrame):
         else:
             check.append(0)
     print("check length",len(check))
-    summary.insert(loc=5,column="cheater",value=check)
+    summary.insert(loc=summary.shape[1],column="cheater",value=check)
     return summary
 
 def KMans_data_analyze(summary:pd.DataFrame,n_clusters:int=2,title:str="Jan"):
@@ -454,41 +462,6 @@ def SVCR_data_analyze(summary:pd.DataFrame):
     print("kernel='rbf'-----")
     print("predicted",predicted)
     print("accuracy",accuracy)
-    # ------------------------------------------SVR
-    # linearModel=svm.SVR(C=1, kernel='linear')
-    # # 使用訓練資料訓練模型
-    # linearModel.fit(X_train, y_train)
-    # # 使用訓練資料預測分類
-    # predicted=linearModel.predict(X_train)
-    # accuracy = linearModel.score(X_train, y_train)
-    # print("SVR kernel='linear'-----")
-    # print("predicted",predicted)
-    # print("accuracy",accuracy)
-
-
-    # # 建立 kernel='poly' 模型
-    # polyModel=svm.SVR(C=1, kernel='poly', gamma='auto')
-    # # 使用訓練資料訓練模型
-    # polyModel.fit(X_train, y_train)
-    # # 使用訓練資料預測分類
-    # predicted=polyModel.predict(X_train)
-    # accuracy = polyModel.score(X_train, y_train)
-    # print("SVR kernel='poly'-----")
-    # print("predicted",predicted)
-    # print("accuracy",accuracy)
-
-    # # 建立 kernel='rbf' 模型
-    # rbfModel=svm.SVR(C=1, kernel='rbf', gamma='auto')
-    # X_train = preprocessing.scale(X_train)
-    # y_train = preprocessing.scale(y_train)
-    # # 使用訓練資料訓練模型
-    # rbfModel.fit(X_train, y_train)
-    # # 使用訓練資料預測分類
-    # predicted= rbfModel.predict(X_train)
-    # accuracy = rbfModel.score(X_train, y_train)
-    # print("SVR kernel='rbf'-----")
-    # print("predicted",predicted)
-    # print("accuracy",accuracy)
 #-------------------------------------------------------------------
 print("Starting process...")
 start = perf_counter()
@@ -540,6 +513,10 @@ print("summary_sold_count")
 print(summary_sold_count["cheater"].__len__())
 print(summary_sold_count[summary_sold_count["cheater"]==1])
 # print(All_data.head())
+
+# to csv
+All_data.to_excel(os.getcwd()+'/summary_data/All_data.xlsx')
+summary_sold_count.to_excel(os.getcwd()+'/summary_data/All_sold.xlsx')
 
 # KMeans clusters final output
 print("Starting KMeans Cluster...")
